@@ -23,8 +23,24 @@ export const getAllSchoolSubjects = catchAsync(async (req, res, next) => {
   });
 });
 
+export const getAllSchools = catchAsync(async (req, res) => {
+  const page = req.query.page * 1 || 1;
+  const limit = req.query.limit * 1 || 10;
+  const skip = (page - 1) * limit;
+
+  const schools = await School.findAll({
+    offset: skip,
+    limit: limit,
+  });
+
+  res.status(200).json({
+    status: "success",
+    results: schools.length,
+    data: { schools },
+  });
+});
+
 export const createSchool = createOne(School);
-export const getAllSchools = getAll(School);
 export const getOneSchool = getOne(School);
 export const updateSchool = updateOne(School);
 export const deleteSchool = deleteOne(School);

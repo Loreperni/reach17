@@ -12,11 +12,18 @@ async function startServer() {
     await sequelize.authenticate();
     console.log("Connected to database");
 
-    await sequelize.sync();
-    console.log("Models synchronized with database");
+    if (process.env.NODE_ENV === "development") {
+      await sequelize.sync({ force: true });
+      console.log("Database synchronized (tables recreated)");
+    } else {
+      await sequelize.sync();
+      console.log("Database synchronized");
+    }
 
     app.listen(port, () => {
-      console.log(`App running on port ${port} in ${process.env.NODE_ENV}`);
+      console.log(
+        `App running on port ${port} in ${process.env.NODE_ENV} mode`
+      );
     });
   } catch (error) {
     console.error("Unable to connect to the database:", error);

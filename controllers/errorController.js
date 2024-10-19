@@ -1,17 +1,13 @@
 import { AppError } from "../utils/appError.js";
 
-const handleCastErrorDB = (err) => {
-  const message = `Invalid ${err.path}: ${err.value}`;
-  return new AppError(message, 400);
-};
-const handleDuplicateFieldsDB = (err) => {
-  const value = Object.values(err.keyValue)[0];
-  const message = `Duplicate field value: ${value}. Please use another value.`;
-  return new AppError(message, 400);
-};
-const handleValidationErrorDB = (err) => {
-  const errors = Object.values(err.errors).map((el) => el.message);
+const handleSequelizeValidationError = (err) => {
+  const errors = err.errors.map((error) => error.message);
   const message = `Invalid input data. ${errors.join(". ")}`;
+  return new AppError(message, 400);
+};
+
+const handleSequelizeUniqueConstraintError = (err) => {
+  const message = `Duplicate field value: ${err.errors[0].value}. Please use another value!`;
   return new AppError(message, 400);
 };
 
@@ -23,18 +19,19 @@ const sendErrorDev = (err, res) => {
     stack: err.stack,
   });
 };
-const sendErrorProduction = (err, res) => {
+
+const sendErrorProd = (err, res) => {
   if (err.isOperational) {
     res.status(err.statusCode).json({
       status: err.status,
       message: err.message,
+      errors: err.errors,
     });
   } else {
-    console.error("ERROR 💥:", err);
-
+    console.error("ERROR 💥", err);
     res.status(500).json({
       status: "error",
-      message: "Something went very wrong 😵",
+      message: "Something went very wrong!",
     });
   }
 };
@@ -46,14 +43,14 @@ export default (err, req, res, next) => {
   if (process.env.NODE_ENV === "development") {
     sendErrorDev(err, res);
   } else if (process.env.NODE_ENV === "production") {
-    let error = { ...err, name: err.name, message: err.message };
+    let error = { ...err };
+    error.message = err.message;
 
-    if (error.name === "CastError") error = handleCastErrorDB(error);
+    if (error.name === "SequelizeValidationError")
+      error = handleSequelizeValidationError(error);
+    if (error.name === "SequelizeUniqueConstraintError")
+      error = handleSequelizeUniqueConstraintError(error);
 
-    if (error.code === 11000) error = handleDuplicateFieldsDB(error);
-
-    if (error.name === "ValidationError")
-      error = handleValidationErrorDB(error);
-    sendErrorProduction(error, res);
+    sendErrorProd(error, res);
   }
 };

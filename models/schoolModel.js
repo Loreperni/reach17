@@ -25,11 +25,20 @@ const School = sequelize.define("School", {
   },
   longDescription: {
     type: DataTypes.TEXT,
+    validate: {
+      notEmpty: true,
+    },
   },
 });
 
 School.beforeCreate((school) => {
   school.slug = slugify(school.name, { lower: true, strict: true });
+});
+
+School.beforeUpdate((school) => {
+  if (school.changed("name")) {
+    school.slug = slugify(school.name, { lower: true, strict: true });
+  }
 });
 
 export default School;

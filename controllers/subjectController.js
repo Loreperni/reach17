@@ -1,14 +1,26 @@
 import Subject from "../models/subjectModel.js";
 import {
   createOne,
-  deleteOne,
-  getAll,
   getOne,
+  getAll,
   updateOne,
+  deleteOne,
 } from "./handlerFactory.js";
+import { body } from "express-validator";
 
-export const createSubject = createOne(Subject);
+const subjectValidations = [
+  body("name")
+    .notEmpty()
+    .withMessage("Name is required")
+    .isLength({ max: 50 })
+    .withMessage("Name must be at most 50 characters"),
+];
+
 export const getAllSubjects = getAll(Subject);
 export const getOneSubject = getOne(Subject);
-export const updateSubject = updateOne(Subject);
+export const createSubject = createOne(Subject, subjectValidations);
+export const updateSubject = updateOne(
+  Subject,
+  subjectValidations.map((validation) => validation.optional())
+);
 export const deleteSubject = deleteOne(Subject);

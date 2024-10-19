@@ -1,14 +1,13 @@
 import { AppError } from "../utils/appError.js";
-import { APIFeatures } from "../utils/APIFeatures.js";
 import { body, validationResult } from "express-validator";
+import { APIFeatures } from "../utils/APIFeatures.js";
 
-export const createOne = (Model) => [
-  body("name").notEmpty().withMessage("Name is required"),
-  body("description").notEmpty().withMessage("Description is required"),
+export const createOne = (Model, validations = []) => [
+  ...validations,
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      return next(new AppError("Validation error", 400, errors.array()));
     }
     next();
   },
@@ -25,17 +24,20 @@ export const createOne = (Model) => [
   },
 ];
 
-export const getOne = (Model) => async (req, res, next) => {
+export const getOne = (Model, popOptions) => async (req, res, next) => {
   try {
-    let doc;
-    if (req.params.slug) {
-      doc = await Model.findOne({ where: { slug: req.params.slug } });
-    } else {
-      doc = await Model.findByPk(req.params.id);
-    }
+    let query = req.params.slug
+      ? Model.findOne({ where: { slug: req.params.slug } })
+      : Model.findByPk(req.params.id);
+
+    if (popOptions) query = query.include(popOptions);
+
+    const doc = await query;
+
     if (!doc) {
       return next(new AppError("No document found with that ID", 404));
     }
+
     res.status(200).json({
       status: "success",
       data: { data: doc },
@@ -47,63 +49,69 @@ export const getOne = (Model) => async (req, res, next) => {
 
 export const getAll = (Model) => async (req, res, next) => {
   try {
-    const page = req.query.page * 1 || 1;
-    const limit = req.query.limit * 1 || 10;
-    const skip = (page - 1) * limit;
-
     const features = new APIFeatures(Model, req.query)
       .filter()
       .sort()
       .limitFields()
       .paginate();
 
-    const docs = await features.query.skip(skip).limit(limit);
+    const { rows, count } = await features.query;
 
     res.status(200).json({
       status: "success",
-      results: docs.length,
-      data: { data: docs },
+      results: rows.length,
+      totalPages: Math.ceil(count / features.limit),
+      currentPage: features.page,
+      data: { data: rows },
     });
   } catch (error) {
     next(error);
   }
 };
 
-
-
-export const updateOne = (Model) => async (req, res, next) => {
-  try {
-    let doc;
-    if (req.params.slug) {
-      doc = await Model.findOne({ where: { slug: req.params.slug } });
-    } else {
-      doc = await Model.findByPk(req.params.id);
+export const updateOne = (Model, validations = []) => [
+  ...validations,
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return next(new AppError("Validation error", 400, errors.array()));
     }
-    if (!doc) {
-      return next(new AppError("No document found with that ID", 404));
+    next();
+  },
+  async (req, res, next) => {
+    try {
+      let doc = req.params.slug
+        ? await Model.findOne({ where: { slug: req.params.slug } })
+        : await Model.findByPk(req.params.id);
+
+      if (!doc) {
+        return next(new AppError("No document found with that ID", 404));
+      }
+
+      doc = await doc.update(req.body);
+
+      res.status(200).json({
+        status: "success",
+        data: { data: doc },
+      });
+    } catch (error) {
+      next(error);
     }
-    await doc.update(req.body);
-    res.status(200).json({
-      status: "success",
-      data: { data: doc },
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+  },
+];
 
 export const deleteOne = (Model) => async (req, res, next) => {
   try {
-    let doc;
-    if (req.params.slug) {
-      doc = await Model.findOne({ where: { slug: req.params.slug } });
-    } else {
-      doc = await Model.findByPk(req.params.id);
-    }
+    let doc = req.params.slug
+      ? await Model.findOne({ where: { slug: req.params.slug } })
+      : await Model.findByPk(req.params.id);
+
     if (!doc) {
       return next(new AppError("No document found with that ID", 404));
     }
+
     await doc.destroy();
+
     res.status(204).json({
       status: "success",
       data: null,
